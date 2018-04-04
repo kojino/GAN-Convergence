@@ -12,7 +12,8 @@ tested this with Theano at all.
 The model saves images using pillow. If you don't have pillow, either install it or remove the calls to generate_images.
 """
 import argparse
-import os, cPickle
+import os
+import _pickle as cPickle
 import numpy as np
 from keras.models import Model, Sequential
 from keras.layers import Input, Dense, Reshape, Flatten
@@ -20,7 +21,6 @@ from keras.layers.merge import _Merge
 from keras.layers.convolutional import Convolution2D, Conv2DTranspose
 from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
-from keras.optimizers import Adam
 from keras.datasets import mnist, cifar10
 from keras.optimizers import Adam, RMSprop, SGD, Adagrad
 from keras import backend as K
@@ -186,7 +186,7 @@ if K.image_data_format() == 'channels_first':
 else:
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], X_train.shape[2], 3))
 X_train = (X_train.astype(np.float32) - 127.5) / 127.5
-
+print(X_train.shape,y_train.shape)
 # Now we initialize the generator and discriminator.
 generator = make_generator()
 discriminator = make_discriminator()

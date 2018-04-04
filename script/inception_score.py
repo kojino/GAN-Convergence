@@ -1,5 +1,3 @@
-# From https://github.com/openai/improved-gan/blob/master/inception_score/model.py
-# Code derived from tensorflow/tensorflow/models/image/imagenet/classify_image.py
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -25,8 +23,9 @@ softmax = None
 def get_inception_score(images, splits=10):
   assert(type(images) == list)
   assert(type(images[0]) == np.ndarray)
+  print(images[0].shape)
   assert(len(images[0].shape) == 3)
-  #assert(np.max(images[0]) > 10)
+  assert(np.max(images[0]) > 10)
   assert(np.min(images[0]) >= 0.0)
   inps = []
   for img in images:
@@ -37,8 +36,8 @@ def get_inception_score(images, splits=10):
     preds = []
     n_batches = int(math.ceil(float(len(inps)) / float(bs)))
     for i in range(n_batches):
-        # sys.stdout.write(".")
-        # sys.stdout.flush()
+        sys.stdout.write(".")
+        sys.stdout.flush()
         inp = inps[(i * bs):min((i + 1) * bs, len(inps))]
         inp = np.concatenate(inp, 0)
         pred = sess.run(softmax, {'ExpandDims:0': inp})
@@ -88,10 +87,12 @@ def _init_inception():
                     new_shape.append(None)
                 else:
                     new_shape.append(s)
-            o._shape = tf.TensorShape(new_shape)
+            o.set_shape(tf.TensorShape(new_shape))
     w = sess.graph.get_operation_by_name("softmax/logits/MatMul").inputs[1]
-    logits = tf.matmul(tf.squeeze(pool3), w)
+    print(pool3)
+    print(tf.squeeze(pool3,[0, 1]), w)
+    logits = tf.matmul(tf.squeeze(pool3,[0, 1]), w)
     softmax = tf.nn.softmax(logits)
 
 if softmax is None:
-  _init_inception()
+    _init_inception()
