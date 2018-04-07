@@ -171,7 +171,7 @@ class GANGPU():
 
     def make_generator(self):
         # 2-layer fully connected NN: 100 x 512 x 784
-        model = Sequential()
+        model = Sequential(name='Generator')
         model.add(Dense(256, activation="relu", input_dim=100))
         model.add(Dense(np.prod(self.img_shape), activation='tanh'))
         model.add(Reshape(self.img_shape))
@@ -179,7 +179,7 @@ class GANGPU():
 
     def make_discriminator(self):
         # 2-layer fully connected NN: 784 x 512 x 1
-        model = Sequential()
+        model = Sequential(name='Discriminator')
         model.add(Flatten(input_shape=self.img_shape))
         model.add(Dense(512, activation="relu"))
         model.add(Dense(1, activation='sigmoid'))
