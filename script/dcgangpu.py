@@ -36,7 +36,6 @@ class RandomWeightedAverage(_Merge):
         weights = K.random_uniform((BATCH_SIZE, 1, 1, 1))
         return (weights * inputs[0]) + ((1 - weights) * inputs[1])
 
-
 class DCGAN():
 
     def __init__(self,gan_type):
@@ -49,6 +48,8 @@ class DCGAN():
         self.clip_value = 0.0001 # threshold for weight cliping (-c,c)
         self.d_losses = []
         real_img = Input(shape=self.img_shape)
+        self.resize_image = Lambda(lambda image: ktf.image.resize_images(image, (64, 64)), input_shape=self.img_shape)
+
 
         # set gan type specific parameters
         optimizer = self.select_optimizer()
@@ -59,7 +60,7 @@ class DCGAN():
         generator = self.make_generator()
         discriminator = self.make_discriminator()
 
-        # The parallel_generator_model is used when we want to train the generator layers.
+        # The generator_model is used when we want to train the generator layers.
         # As such, we ensure that the discriminator layers are not trainable.
         for layer in discriminator.layers:
             layer.trainable = False
@@ -68,11 +69,10 @@ class DCGAN():
         generator_layers = generator(generator_input)
         discriminator_layers_for_generator = discriminator(generator_layers)
         generator_model = Model(inputs=[generator_input], outputs=[discriminator_layers_for_generator])
-        parallel_generator_model = multi_gpu_model(generator_model, gpus=2)
         # We use the Adam paramaters from Gulrajani et al.
-        parallel_generator_model.compile(optimizer=optimizer, loss=loss)
+        generator_model.compile(optimizer=optimizer, loss=loss)
 
-        # Now that the parallel_generator_model is compiled, we can make the discriminator layers trainable.
+        # Now that the generator_model is compiled, we can make the discriminator layers trainable.
         for layer in discriminator.layers:
             layer.trainable = True
         for layer in generator.layers:
@@ -80,7 +80,7 @@ class DCGAN():
         discriminator.trainable = True
         generator.trainable = False
 
-        # The parallel_discriminator_model is more complex. It takes both real image samples and random noise seeds as input.
+        # The discriminator_model is more complex. It takes both real image samples and random noise seeds as input.
         # The noise seed is run through the generator model to get generated images. Both real and generated images
         # are then run through the discriminator.
         real_samples = Input(shape=self.img_shape)
@@ -93,8 +93,8 @@ class DCGAN():
             discriminator_model = Model(inputs=[real_samples, generator_input_for_discriminator],
                                         outputs=[discriminator_output_from_real_samples,
                                                  discriminator_output_from_generator])
-            parallel_discriminator_model = multi_gpu_model(discriminator_model, gpus=2)
-            parallel_discriminator_model.compile(optimizer=optimizer,
+
+            discriminator_model.compile(optimizer=optimizer,
                                         loss=[loss,
                                               loss])
 
@@ -115,17 +115,17 @@ class DCGAN():
                                       gradient_penalty_weight=GRADIENT_PENALTY_WEIGHT)
             partial_gp_loss.__name__ = 'gradient_penalty'  # Functions need names or Keras will throw an error
 
-            parallel_discriminator_model = Model(inputs=[real_samples, generator_input_for_discriminator],
+            discriminator_model = Model(inputs=[real_samples, generator_input_for_discriminator],
                     outputs=[discriminator_output_from_real_samples,
                              discriminator_output_from_generator,
                              averaged_samples_out])
 
-            parallel_discriminator_model.compile(optimizer=optimizer,
+            discriminator_model.compile(optimizer=optimizer,
                                         loss=[loss,
                                               loss,
                                               partial_gp_loss])
 
-        self.parallel_generator_model, self.parallel_discriminator_model = parallel_generator_model, parallel_discriminator_model
+        self.generator_model, self.discriminator_model = generator_model, discriminator_model
         self.generator, self.discriminator = generator, discriminator
 
     def select_optimizer(self):
@@ -179,22 +179,22 @@ class DCGAN():
         # 1st hidden layer
         model.add(Conv2DTranspose(1024, (4,4), strides=(1, 1), padding='valid'))
         model.add(BatchNormalization(momentum=0.99))
-        model.add(LeakyReLU(alpha=.2))
+        model.add(Lambda(lambda x: ktf.maximum(0.2*x, x)))
 
         # 2nd hidden layer
         model.add(Conv2DTranspose(512, (4,4), strides=(2, 2), padding='same'))
         model.add(BatchNormalization(momentum=0.99))
-        model.add(LeakyReLU(alpha=.2))
+        model.add(Lambda(lambda x: ktf.maximum(0.2*x, x)))
 
         # 3rd hidden layer
         model.add(Conv2DTranspose(256, (4,4), strides=(2, 2), padding='same'))
         model.add(BatchNormalization(momentum=0.99))
-        model.add(LeakyReLU(alpha=.2))
+        model.add(Lambda(lambda x: ktf.maximum(0.2*x, x)))
 
         # 4th hidden layer
         model.add(Conv2DTranspose(128, (4,4), strides=(2, 2), padding='same'))
         model.add(BatchNormalization(momentum=0.99))
-        model.add(LeakyReLU(alpha=.2))
+        model.add(Lambda(lambda x: ktf.maximum(0.2*x, x)))
 
         # output layer
         model.add(Conv2DTranspose(1, (4,4), strides=(2, 2), padding='same'))
@@ -211,23 +211,23 @@ class DCGAN():
 
         model = Sequential()
 
-        model.add(Lambda(lambda image: ktf.image.resize_images(image, (64, 64)), input_shape=self.img_shape))
+        model.add(self.resize_image)
 
         # 1st hidden layer
         model.add(Conv2D(128, (4,4), strides=(2, 2), padding='same'))
-        model.add(LeakyReLU(alpha=.2))
+        model.add(Lambda(lambda x: ktf.maximum(0.2*x, x)))
 
         # 2nd hidden layer
         model.add(Conv2D(256, (4,4), strides=(2, 2), padding='same'))
-        model.add(LeakyReLU(alpha=.2))
+        model.add(Lambda(lambda x: ktf.maximum(0.2*x, x)))
 
         # 3rd hidden layer
         model.add(Conv2D(512, (4,4), strides=(2, 2), padding='same'))
-        model.add(LeakyReLU(alpha=.2))
+        model.add(Lambda(lambda x: ktf.maximum(0.2*x, x)))
 
         # 4th hidden layer
         model.add(Conv2D(1024, (4,4), strides=(2, 2), padding='same'))
-        model.add(LeakyReLU(alpha=.2))
+        model.add(Lambda(lambda x: ktf.maximum(0.2*x, x)))
 
         # output layer
         model.add(Conv2D(1, (4,4), strides=(1, 1), padding='valid'))
@@ -298,15 +298,15 @@ class DCGAN():
                     noise = np.random.rand(batch_size, 100).astype(np.float32)
                     if self.type in ['gan','wgan']:
                         print(image_batch.shape,noise.shape,positive_y.shape,negative_y.shape)
-                        discriminator_loss.append(self.parallel_discriminator_model.train_on_batch([image_batch, noise],
+                        discriminator_loss.append(self.discriminator_model.train_on_batch([image_batch, noise],
                                                   [positive_y, negative_y]))
                     elif self.type in ['improved_wgan','optim']:
-                        discriminator_loss.append(self.parallel_discriminator_model.train_on_batch([image_batch, noise],
+                        discriminator_loss.append(self.discriminator_model.train_on_batch([image_batch, noise],
                                                   [positive_y, negative_y, dummy_y]))
 
                     if self.type == 'wgan':
                         # Clip discriminator weights
-                        for l in self.parallel_discriminator_model.layers:
+                        for l in self.discriminator_model.layers:
                             weights = l.get_weights()
                             weights = [np.clip(w, -self.clip_value, self.clip_value) for w in weights]
                             l.set_weights(weights)
@@ -315,7 +315,7 @@ class DCGAN():
                 #  Train Generator
                 # ---------------------
                 noise = np.random.normal(0, 1, (batch_size, 100))
-                generator_loss.append(self.parallel_generator_model.train_on_batch(noise, positive_y))
+                generator_loss.append(self.generator_model.train_on_batch(noise, positive_y))
 
                 # If at save interval => save generated image samples
                 if epoch % save_interval == 0:
